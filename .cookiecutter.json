@@ -1,0 +1,13 @@
+{
+  "_template": "gh:cjolowicz/cookiecutter-hypermodern-python",
+  "author": "Jalin Howard",
+  "copyright_year": "2024",
+  "development_status": "Development Status :: 4 - Beta",
+  "email": "jhowar39@emich.edu",
+  "friendly_name": "Muriel",
+  "github_user": "DmitrievichLevin",
+  "license": "Apache-2.0",
+  "package_name": "muriel",
+  "project_name": "Burgos_ECS",
+  "version": "0.0.1"
+}
