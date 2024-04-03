@@ -21,6 +21,11 @@
 [pre-commit]: https://github.com/pre-commit/pre-commit
 [black]: https://github.com/psf/black
 
+## Architecture
+# v0.001
+![ECS Compartment refactor drawio](https://github.com/DmitrievichLevin/Muriel/assets/85088766/2f793026-4029-45ef-8666-8e6bb997fbc5)
+
+
 ## Features
 
 - TODO
