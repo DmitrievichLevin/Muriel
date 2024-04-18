@@ -10,5 +10,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    raise Exception()
     main(prog_name="Burgos_ECS")  # pragma: no cover

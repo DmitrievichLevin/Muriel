@@ -12,6 +12,22 @@ from .ecs_builtin import Movement
 from .ecs_builtin import Position
 from .ecs_builtin import Velocity
 from .ecs_entity import Entity
+from .collisions import (
+    Normal,
+    Plane,
+    Vector3d,
+    Line,
+    Polygon,
+    Quadrilateral,
+    Triangle,
+    PolygonClassification,
+    Intersection,
+    split_plane,
+    split_polygon,
+    classify_polygon_to_plane,
+    classify_vector_to_plane,
+    BSPNode,
+)
 
 
 basicConfig(
@@ -39,4 +55,17 @@ __all__ = (
     "Observable",
     "Observer",
     "Entity",
+    "Normal",
+    "Plane",
+    "Vector3d",
+    "Line",
+    "Polygon",
+    "Quadrilateral",
+    "Triangle",
+    "PolygonClassification",
+    "Intersection",
+    "split_plane",
+    "split_polygon",
+    "classify_polygon_to_plane",
+    "classify_vector_to_plane",
 )
