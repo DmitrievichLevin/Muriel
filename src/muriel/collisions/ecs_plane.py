@@ -223,13 +223,17 @@ class Normal(object):
         *_rest: tuple[list[Vector3d] | tuple[Vector3d]],
     ):
 
-        # Calculate normal
-        normal = np.cross(v2 - v1, v3 - v1)
+        # Calculate normal + Convert whole numbers to ints
+        normal = np.vectorize(
+            lambda x: int(x) if x - int(x) == 0 else x
+        )(np.cross(v2 - v1, v3 - v1))
 
         # Incase of Zero Division
         normal_gcd = 1
 
-        normal_gcd = np.gcd.reduce(normal)
+        normal_gcd = np.gcd.reduce(
+            np.absolute(normal),
+        )
 
         # Simplify normal (greatest common denominator)
         simplified_normal = np.divide(
@@ -285,7 +289,7 @@ class Plane(NDarray):
 
         super().__array_finalize__(obj)
 
-        if type(obj) is not self.__class__:
+        if type(obj) is not self.__class__ and obj.size:
             a, *rest = np.reshape(obj.tolist(), [-1, 3])
 
             _normal = Normal(a, *rest)
@@ -365,10 +369,11 @@ class Triangle(Polygon):
 
     capacity = 3
 
-    def __new__(
-        cls,
-        input_array: list[Vector3d],
-    ):
+    def __init__(self, *args, name="Unknown:Triangle", **kwargs):
+        self.name = name
+        super().__init__()
+
+    def __new__(cls, input_array: list[Vector3d], **kwargs):
         return super().__new__(cls, input_array)
 
 

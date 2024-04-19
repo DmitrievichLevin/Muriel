@@ -6,6 +6,7 @@ import numpy as np
 from muriel.collisions.ecs_plane import (
     Normal,
     Vector3d,
+    Plane,
     Polygon,
     Quadrilateral,
     Triangle,
@@ -52,6 +53,16 @@ def test_normal_obj(test_matrix):
     # Normal as a unit
     vector = [1.0, -1.0, 1.0]
     assert all([_normal.unit[i] == vector[i] for i in range(3)])
+
+
+def test_plane(test_matrix):
+    """Test Dot Product Accuracy"""
+    v1, v2, v3 = test_matrix
+    plane = Plane([v1, v2, v3])
+
+    # Constant Normal Form: ax + by + cz - d = 0
+    # Where n = (a,b,c) and d = n * Any_point_on_the_plane
+    assert plane.dot_product == 5
 
 
 def test_polygon(test_matrix):

@@ -21,7 +21,7 @@ class BSPNode:
         collisions.Quadrilateral
         | collisions.Triangle
         | collisions.Polygon
-    ]
+    ] = []
 
     def __init__(
         self,
@@ -34,7 +34,7 @@ class BSPNode:
         max_depth=0,
         min_leaf_size=1,
     ):
-
+        self.depth = depth
         if not polygons:
             self._front = None
             self._back = None
@@ -65,15 +65,7 @@ class BSPNode:
             _split = collisions.split_plane(polygons)
 
             for idx, poly in enumerate(polygons):
-                print("poly loop", idx, size, depth, poly.tobase())
-                # print(
-                #     "classif",
-                #     collisions.classify_polygon_to_plane(
-                #         poly, _split
-                #     ),
-                #     _split.tobase(),
-                #     poly.tobase(),
-                # )
+
                 cond = collisions.classify_polygon_to_plane(
                     poly, _split
                 )
@@ -117,36 +109,70 @@ class BSPNode:
 
 
 def test_polygon_split():
-    a = collisions.Vector3d([0, 0, 0])
-    b = collisions.Vector3d([5, 0, 0])
-    c = collisions.Vector3d([0, 5, 0])
+    A, B, C, D, E, F, G, H = (
+        collisions.Vector3d([2, 0, -1]),
+        collisions.Vector3d([5, 0, -1]),
+        collisions.Vector3d([0, 5, -3]),
+        collisions.Vector3d([5, 5, -4]),
+        collisions.Vector3d([10, 5, 4]),
+        collisions.Vector3d([-5, 0, -2]),
+        collisions.Vector3d([0, -5, 2]),
+        collisions.Vector3d([-2, 8, 3]),
+    )
 
-    a2 = collisions.Vector3d([0, 5, 0])
-    b2 = collisions.Vector3d([5, 0, 0])
-    c2 = collisions.Vector3d([5, 5, 0])
+    triangles = (
+        collisions.Triangle([A, B, C], name="ABC"),
+        collisions.Triangle([C, B, D], name="CBD"),
+        collisions.Triangle([B, E, D], name="BED"),
+        collisions.Triangle([F, A, C], name="FAC"),
+        collisions.Triangle([G, B, A], name="GBA"),
+        collisions.Triangle([F, C, H], name="FCH"),
+    )
 
-    a3 = collisions.Vector3d([5, 0, 0])
-    b3 = collisions.Vector3d([10, 5, 0])
-    c3 = collisions.Vector3d([5, 5, 0])
+    ABC, CBD, BED, FAC, GBA, FCH = triangles
 
-    tri = collisions.Triangle([a, b, c])
+    # Test Point On Plane ABC
+    assert (
+        collisions.PolygonClassification.ON_PLANE
+        == collisions.classify_vector_to_plane(
+            collisions.Vector3d([2, 2, -9 / 5]), ABC
+        )
+    )
 
-    tri2 = collisions.Triangle([a2, b2, c2])
+    # Test Point BEHIND Plane ABC
+    assert (
+        collisions.PolygonClassification.BEHIND
+        == collisions.classify_vector_to_plane(
+            collisions.Vector3d([12, -8, 1]), ABC
+        )
+    )
 
-    tri3 = collisions.Triangle([a3, b3, c3])
+    # Test Point INFRONT Plane ABC
+    assert (
+        collisions.PolygonClassification.INFRONT
+        == collisions.classify_vector_to_plane(
+            collisions.Vector3d([12, -8, 5]), ABC
+        )
+    )
 
-    result = BSPNode([tri, tri2, tri3], max_depth=4)
+    # COPLANER TEST
+    test_split_plane = collisions.Triangle(
+        [
+            collisions.Vector3d([2, 2, -9 / 5]),
+            collisions.Vector3d([12, -8, 1]),
+            collisions.Vector3d([12, -8, 5]),
+        ],
+        name="TESTSPLIT",
+    )
+    assert (
+        collisions.PolygonClassification.COPLANAR
+        == collisions.classify_polygon_to_plane(ABC, test_split_plane)
+    )
 
-    front = result._front
-    # print(
-    #     "\n front \n",
-    #     front.__dict__,
-    #     "\n back",
-    #     result._behind._polygons,
-    # )
+    # Test Picking Split Plane: BED Score == 5.2
+    assert BED == collisions.split_plane(triangles)
 
-    # while result:
-    #     pass
+    result = BSPNode(triangles, max_depth=4)
 
 
 test_polygon_split()

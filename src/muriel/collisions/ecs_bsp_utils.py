@@ -37,28 +37,34 @@ def split_plane(
     best_score: float = 0
 
     for poly in _polygons:
+
         _infront, _behind, _straddling = [0] * 3
 
         for test_poly in _polygons:
             # skip self
-
             if poly == test_poly:
                 continue
 
             match (classify_polygon_to_plane(test_poly, poly)):
                 case PolygonClassification.COPLANAR:
+                    print(
+                        f"{poly.name} coplanar/infront of {test_poly.name}"
+                    )
                     # Coplanar polygons treated as being in front of plane
                     _infront += 1
-                    break
+
                 case PolygonClassification.INFRONT:
+                    print(f"{poly.name} infront of {test_poly.name}")
                     _infront += 1
-                    break
+
                 case PolygonClassification.BEHIND:
+                    print(f"{poly.name} behind {test_poly.name}")
                     _behind += 1
-                    break
+
                 case PolygonClassification.STRADDLING:
+                    print(f"{poly.name} straddling {test_poly.name}")
                     _straddling += 1
-                    break
+
                 case _:
                     raise TypeError(
                         "Expected literal[PolygonClassification], but found none."
@@ -70,11 +76,20 @@ def split_plane(
             + (1.0 - _blend_factor_env_var)
             + abs(_infront - _behind)
         )
-        print("test score", test_score)
+        print(
+            "\ntest score",
+            test_score,
+            poly.name,
+            "\n",
+            f"infront: {_infront} \n behind: {_behind} \n straddling: {_straddling} \n",
+        )
         if test_score > best_score:
             best_score = test_score
             best_plane = poly
-
+    print(
+        "best plane: ",
+        best_plane.name,
+    )
     return best_plane
 
 
@@ -84,11 +99,13 @@ def classify_vector_to_plane(_vector: Vector3d, _plane: Plane):
     - Based on signed distance.
     """
     # Compute signed distance of point from plane
-    dist = np.dot(_plane.raw_normal, _vector) - _plane.dot_product
-    print("\n dist \n", dist, _vector.tobase())
-    _plane_thickness_epsilon_env_var = float(
-        os.environ["PLANE_THICKNESS_EPSILON"]
-    )
+    dist = np.dot(_plane.normal, _vector) - _plane.dot_product
+
+    vector_norm = np.sqrt(sum(np.square(_plane.normal)))
+
+    dist = dist / vector_norm
+
+    _plane_thickness_epsilon_env_var = 0
 
     if dist > _plane_thickness_epsilon_env_var:
         return PolygonClassification.INFRONT
@@ -107,15 +124,14 @@ def classify_polygon_to_plane(
     - Straddling
     """
     _infront, _behind = [0] * 2
-    print("split", _split_plane.tobase())
+
     for idx in range(_polygon.vertices):
         match (classify_vector_to_plane(_polygon[idx], _split_plane)):
             case PolygonClassification.INFRONT:
                 _infront += 1
-                break
+
             case PolygonClassification.BEHIND:
                 _behind += 1
-                break
 
     if not _infront and not _behind:
         return PolygonClassification.STRADDLING
@@ -161,14 +177,16 @@ def split_polygon(
 
                     if intersect:
                         front_vertices = np.append(
-                            front_vertices, intersect
+                            front_vertices, Vector3d(intersect)
                         )
                         back_vertices = np.append(
-                            back_vertices, intersect
+                            back_vertices, Vector3d(intersect)
                         )
 
                 # Default Condition: Add b to front
-                front_vertices = np.append(front_vertices, _b)
+                front_vertices = np.append(
+                    front_vertices, Vector3d(_b)
+                )
                 break
             case PolygonClassification.BEHIND:
 
@@ -178,28 +196,36 @@ def split_polygon(
 
                     if intersect:
                         front_vertices = np.append(
-                            front_vertices, intersect
+                            front_vertices, Vector3d(intersect)
                         )
                         back_vertices = np.append(
-                            back_vertices, intersect
+                            back_vertices, Vector3d(intersect)
                         )
                 # A On Plane Condition: Add a to back
                 elif a_class is PolygonClassification.ON_PLANE:
-                    back_vertices = np.append(back_vertices, _a)
+                    back_vertices = np.append(
+                        back_vertices, Vector3d(_a)
+                    )
 
                 # Default Condition: Add b to back
-                back_vertices = np.append(back_vertices, _b)
+                back_vertices = np.append(back_vertices, Vector3d(_b))
 
             case _:
                 # B On Plane Condition: Add b to front
-                front_vertices = np.append(front_vertices, _b)
+                front_vertices = np.append(
+                    front_vertices, Vector3d(_b)
+                )
 
                 # A Behind Plane: Add b to back
                 if a_class is PolygonClassification.BEHIND:
-                    back_vertices = np.append(back_vertices, _b)
+                    back_vertices = np.append(
+                        back_vertices, Vector3d(_b)
+                    )
 
         # Point to b as starting point for next edge
         _a = _b
+    # TODO - HERE resulting vertices do not make up Vector3s
+    print("front and back", front_vertices, back_vertices)
     front_poly = Polygon(front_vertices)
     back_poly = Polygon(back_vertices)
 
