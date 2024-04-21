@@ -1,19 +1,14 @@
 """ECS Plane Module"""
 
+# pylint: disable=line-too-long
 from __future__ import annotations
 import os
 from types import NoneType
 from typing import Any
-from enum import IntEnum
+from functools import reduce
 import numpy as np
 from numpy.typing import NDArray
-
-
-class Shape(IntEnum):
-    """Supported Polygon Types"""
-
-    QUADRILATERAL = 4
-    TRIANGLE = 3
+from .ecs_constants import Shape, Orientation
 
 
 class NDarray(np.ndarray):
@@ -137,11 +132,20 @@ class NDarray(np.ndarray):
     def __eq__(self, other: Any) -> Any:
         """Comparison Override"""
         _other = (
-            other if not hasattr(other, "tobase") else other.tobase()
+            other if not hasattr(other, "tolist") else other.tolist()
         )
+
+        _self = self.tolist()
+
+        if not self.arraylike(other):
+            return False
+
+        if len(_other) != len(_self):
+            return False
+
         return np.all(
             np.isclose(
-                self.tobase(),
+                _self,
                 _other,
                 atol=getattr(self, "__thickness", 1e-08),
             )
@@ -217,23 +221,15 @@ class Normal(object):
 
     def __init__(
         self,
-        v1: Vector3d,
-        v2: Vector3d,
-        v3: Vector3d,
-        *_rest: tuple[list[Vector3d] | tuple[Vector3d]],
+        v1: Vector3d | NDArray,
+        v2: Vector3d | NDArray,
+        v3: Vector3d | NDArray,
+        *_rest: Vector3d | NDArray,
     ):
 
-        # Calculate normal + Convert whole numbers to ints
-        normal = np.vectorize(
-            lambda x: int(x) if x - int(x) == 0 else x
-        )(np.cross(v2 - v1, v3 - v1))
+        normal = self.get_normal(v1, v2, v3)
 
-        # Incase of Zero Division
-        normal_gcd = 1
-
-        normal_gcd = np.gcd.reduce(
-            np.absolute(normal),
-        )
+        normal_gcd = self.gcd(normal)
 
         # Simplify normal (greatest common denominator)
         simplified_normal = np.divide(
@@ -247,16 +243,50 @@ class Normal(object):
         unit_denom = np.sqrt([np.square(p) for p in normal])
 
         # Handles Division by zero
-        unit_normal = np.divide(
+        orientation = np.divide(
             normal,
             unit_denom,
-            out=np.zeros_like(normal, dtype=float),
+            out=np.zeros_like(normal, dtype=int),
             where=unit_denom != 0.0,
-        )
+            casting="unsafe",
+        ).tolist()
 
         self.raw_normal = Vector3d(normal)
         self.normal = Vector3d(simplified_normal)
-        self.unit = unit_normal
+        self.orientation = Orientation(str(orientation))
+        self.unit = orientation
+
+    @classmethod
+    def get_normal(
+        cls,
+        v1: Vector3d | NDArray,
+        v2: Vector3d | NDArray,
+        v3: Vector3d | NDArray,
+    ):
+        """Calculate normal + Convert whole numbers to ints"""
+
+        return np.vectorize(
+            lambda x: int(x) if x - int(x) == 0 else round(x, 4)
+        )(np.cross(v2 - v1, v3 - v1))
+
+    @classmethod
+    def gcd(cls, vector: Vector3d | NDArray) -> int:
+        """GCD of Vector
+
+        Args:
+            vector (Vector3d | NDArray): vector 3
+
+        Returns:
+            int: 1 if vector contains non-whole number, else gcd
+        """
+        g = lambda a, b: (  # pylint: disable=unnecessary-lambda-assignment
+            1
+            if not float(a).is_integer()
+            else int(a) if b == 0 else g(abs(b), abs(a) % abs(b))  # type: ignore[has-type]
+        )
+
+        # pylint: disable=unnecessary-lambda
+        return reduce(lambda x, y: g(x, y), vector)
 
 
 class Plane(NDarray):
@@ -266,65 +296,108 @@ class Plane(NDarray):
         normal (Vector3d): vector perpendicular to plane.
         unit_normal (Vector3d): normal as a unit.
         dot_product (float): point on plane.
-        vertices (int): number of points on plane.
+        vertices (int): 0 Plane is not closed.
+        orientation (Orientation): Unit Normal Enum.
 
     Args:
         input_array(list[Vector3d]): list of 3d vectors 2>vector_list>infinity
+        name(str): optional naming for debugging.
     """
 
     dot_product: float
     normal: Vector3d
     unit_normal: Vector3d
     raw_normal: Vector3d
+    ab: Vector3d
+    bc: Vector3d
+    ca: Vector3d
     vertices: int
+    name: str
+    orientation: Orientation
 
     def __new__(
         cls,
-        input_array: list[Vector3d],
+        input_array: list[Vector3d] | Plane | tuple[Vector3d, ...],
+        **_kwargs,
     ):
         _input_vectors = [Vector3d(arr) for arr in input_array]
         return super().__new__(cls, _input_vectors)
 
+    def __init__(  # pylint: disable=super-init-not-called
+        self,
+        _input_array: list[Vector3d] | Plane | tuple[Vector3d, ...],
+        name: str | None = None,
+    ):
+        self.name = name or f"Unknown:{self.__class__.__name__}"
+
     def __array_finalize__(self, obj) -> None:
 
         super().__array_finalize__(obj)
+        rows, *__cols = self.shape
+        cols = 0 if len(__cols) == 0 else __cols[0]
 
-        if type(obj) is not self.__class__ and obj.size:
-            a, *rest = np.reshape(obj.tolist(), [-1, 3])
+        # On Mutations return to base if not 3x3
+        if rows < 3 or cols != 3:
+            self.tobase()
+        else:
+            a, b, c, *_rest = np.reshape(obj.tolist(), [-1, 3])
 
-            _normal = Normal(a, *rest)
+            _normal = Normal(a, b, c)
+
+            # Plane is infinite
+            vertices = 0 if self.__class__ == Plane else len(obj)
 
             # This attribute should be maintained!
             computed_attributes = {
                 "normal": _normal.normal,
                 "unit_normal": _normal.unit,
                 "dot_product": np.dot(_normal.normal, a),
-                "vertices": len(obj),
+                "vertices": vertices,
                 "raw_normal": _normal.raw_normal,
+                "orientation": _normal.orientation,
                 "__thickness": float(
                     os.environ["PLANE_THICKNESS_EPSILON"]
                 ),
             }
 
             self.__dict__.update(
-                computed_attributes
+                computed_attributes, ab=b - a, bc=c - b, ca=a - c
             )  # another way to set attributes
 
 
 class Polygon(Plane):
-    """Plane Extended
+    """Closed Plane Subclass
+
+    - Polygons are closed plane figures that have three or more sides.
     - concavity boolean
 
     Attributes:
-        normal (Vector3d): vector perpendicular to plane.
-        dot_product (float): point on plane.
+        normal (Vector3d): vector perpendicular to polygon.
+        unit_normal (Vector3d): normal as a unit.
+        dot_product (float): point on polygon.
+        vertices (int): Number of enclosing points.
         convex(bool): convex-polygon or concave-polygon.
+        solid(bool): Polygon is solid.
 
     Args:
-        input_array(list[Vector3d]): list of 3d vectors 2>vector_list>infinity
+        input_array(list[Vector3d]): list of 3d vectors 2>vector_list>infinity.
+        name(str): optional naming for debugging.
     """
 
     convex: bool
+    solid: bool = True
+
+    def __new__(
+        cls,
+        input_array: list[Vector3d] | Plane | tuple[Vector3d, ...],
+        **_kwargs,
+    ):
+        length = len(input_array)
+        if length < 3:
+            raise TypeError(
+                f"Expected vertices>3, but found {length}."
+            )
+        return super().__new__(cls, input_array)
 
     def __array_finalize__(self, obj) -> None:
         """Update dict with convex(bool) attribute"""
@@ -336,15 +409,17 @@ class Polygon(Plane):
         self.__dict__.update(convex=convex)
 
     def __str__(self):
-        rows, __cols = self.shape
-        match rows:
+        rows, *__cols = self.shape
+        cols = 0 if len(__cols) == 0 else __cols[0]
+
+        match rows * 2 - cols:
             case Shape.QUADRILATERAL:
                 _type = "Quadrilateral"
 
             case Shape.TRIANGLE:
                 _type = "Triangle"
             case _:
-                _type = f"Unknown: {self.size} Vertices"
+                return np.ndarray.__str__(self)
         _normal = self.raw_normal
         _dot = self.dot_product
         _convex = self.convex
@@ -356,25 +431,11 @@ class Quadrilateral(Polygon):
 
     capacity = 4
 
-    def __new__(
-        cls,
-        input_array: list[Vector3d],
-    ):
-
-        return super().__new__(cls, input_array)
-
 
 class Triangle(Polygon):
     """Polygon w/ 3 verticies"""
 
     capacity = 3
-
-    def __init__(self, *args, name="Unknown:Triangle", **kwargs):
-        self.name = name
-        super().__init__()
-
-    def __new__(cls, input_array: list[Vector3d], **kwargs):
-        return super().__new__(cls, input_array)
 
 
 def is_convex(
@@ -409,13 +470,8 @@ def is_convex(
                 return np.dot(acd, acb) < 0.0
 
         case _:
-            raise TypeError(
-                "Expected list[Vector3d | list[int | float] | tuple[int | float]] of length 3 or 4."
-            )
-
-
-def pos_to_char(pos):
-    return chr(pos + 97)
+            # Polygons with vertices < 3 = convex
+            return True
 
 
 def scalar_triple(u, v, w) -> int | float:
@@ -445,34 +501,36 @@ def test_scalar_triple():
 
 
 class Intersection(NDarray):
-    """Intersecting Vector of Plane & Point
+    """Intersecting Vector of Plane & Segment
 
     Args:
-        input_array(Polygon): polygon of type Triangle or Quadrilateral
+        input_array(Polygon | Plane): Polygon/Plane to test segment against.
+        line(Line): Edge to be tested.
     """
 
     def __new__(
         cls,
-        input_array: Polygon,
+        input_array: Polygon | Plane,
         line: Line,
     ):
+        # Number of vertices
+        num_vertices = input_array.vertices
 
-        p, _q = line
+        p, q = line.tobase()
 
-        pq = _q - p
+        pq = q - p
 
         # Revert child of ndarray to base
-        # TODO - Sort
-        _polygon = [
-            *input_array.tobase(),
-            *[None] * (4 - input_array.vertices),
-        ]
-
+        # TODO - Sort Maybe?
         # Vertices
-        a, b, c, d = _polygon
+        a, b, c, *rest = input_array.tobase()
+        d = len(rest) and rest[0]
 
         # pa, pb, pc, pd | None
-        pa, pb, pc, pd = np.array([vert - p for vert in _polygon])
+        pa: NDarray = a - p
+        pb: NDarray = b - p
+        pc: NDarray = c - p
+        pd: NDarray = None if not NDarray.arraylike(d) else d - p  # type: ignore[assignment]
 
         m = np.cross(pc, pq)
 
@@ -482,7 +540,11 @@ class Intersection(NDarray):
         # Immutable
         u, v, w = uvw
 
-        match input_array.vertices:
+        match num_vertices:
+            case Shape.PLANE:
+                intersect = cls.__plane(p, pq, input_array)
+
+                return super().__new__(cls, intersect)
             case Shape.TRIANGLE:
 
                 uvw[1] *= -1
@@ -575,6 +637,19 @@ class Intersection(NDarray):
         uvw[2] = w * denom
 
         return True
+
+    @classmethod
+    def __plane(cls, p: NDarray, pq: NDarray, plane: Plane):
+
+        t = (plane.dot_product - np.dot(plane.normal, p)) / np.dot(
+            plane.normal, pq
+        )
+
+        if t >= 0 and t <= 1:
+
+            return p + t * pq
+
+        return None
 
     def __array_finalize__(self, obj) -> None:
         super().__array_finalize__(obj)

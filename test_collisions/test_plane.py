@@ -79,8 +79,8 @@ def test_polygon(test_matrix):
 def test_polygon_subclass_capacity(test_matrix):
     """Test Quadrilateral Object"""
     a, *_rest = test_matrix
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _bad_quad = Quadrilateral([a])
 
-    with pytest.raises(ValueError):
+    with pytest.raises(TypeError):
         _bad_tri = Triangle([a])

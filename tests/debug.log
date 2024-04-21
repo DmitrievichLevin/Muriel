@@ -1,40 +1,40 @@
 
-18:24:05 
+03:28:23 
 line 43 in, ecs_system 
 function: __init__() 
 message: System: VectorQuantityPhysics 
 Sets attribute(s): ['_gravity', '_is_protocol', '_setup', 'airborne', 'airborne_duration', 'delta', 'flag', 'gravity', 'has_inertia', 'impulse', 'in_motion', 'inertia', 'jump_max_height', 'jump_peak_ms', 'lateral_velocity_ms', 'mass', 'normalize_acceleration', 'prerequisites', 'process', 'register', 'vertical_velocity_ms'] 
 on components.
 
-18:24:05 
+03:28:23 
 line 56 in, ecs_events 
 function: lock_observable() 
 message: <class 'muriel.ecs_builtin.Velocity'> audience began seating. 
 Binding load to <class 'muriel.ecs_builtin.Velocity'> initialization...
 
-18:24:05 
+03:28:23 
 line 136 in, ecs_events 
 function: queue_observer() 
-message: <class 'muriel.ecs_builtin.Position'> has acquired Audience <muriel.ecs_events.Audience object at 0x10236cc90> lock. 
-Thread: 8068422720
+message: <class 'muriel.ecs_builtin.Position'> has acquired Audience <muriel.ecs_events.Audience object at 0x106863210> lock. 
+Thread: 8478145216
 
-18:24:05 
+03:28:23 
 line 209 in, ecs_events 
 function: __call__() 
 message: 1 Observers: [<class 'muriel.ecs_builtin.Position'>] awaiting entry to <class 'muriel.ecs_builtin.Velocity'>.
 
-18:24:05 
+03:28:23 
 line 136 in, ecs_events 
 function: queue_observer() 
-message: <class 'muriel.ecs_builtin.Direction'> has acquired Audience <muriel.ecs_events.Audience object at 0x10236cc90> lock. 
-Thread: 8068422720
+message: <class 'muriel.ecs_builtin.Direction'> has acquired Audience <muriel.ecs_events.Audience object at 0x106863210> lock. 
+Thread: 8478145216
 
-18:24:05 
+03:28:23 
 line 209 in, ecs_events 
 function: __call__() 
 message: 2 Observers: [<class 'muriel.ecs_builtin.Position'>, <class 'muriel.ecs_builtin.Direction'>] awaiting entry to <class 'muriel.ecs_builtin.Velocity'>.
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -43,7 +43,7 @@ Directories: ['muriel']
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -52,7 +52,7 @@ Directories: ['collisions', '__pycache__', 'headless_collision_detection']
 Found Modules: ['ecs_builtin_states.py'] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -61,7 +61,7 @@ Directories: ['__pycache__']
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -70,7 +70,7 @@ Directories: ['tests', 'Software_3D_engine-main']
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -79,7 +79,7 @@ Directories: ['__pycache__']
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -88,7 +88,7 @@ Directories: ['screenshots', 'resources', '__pycache__']
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -97,7 +97,7 @@ Directories: []
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 100 in, ecs_discovery 
 function: submodule_walk() 
 message: Sub-module Walking... 
@@ -106,41 +106,41 @@ Directories: []
 Found Modules: [] 
 
 
-18:24:05 
+03:28:23 
 line 107 in, ecs_discovery 
 function: submodule_walk() 
 message: type[BaseStateMachine]
 Modules found: [('Ascend', <class 'ecs_builtin_states.py.Ascend'>), ('Idle', <class 'ecs_builtin_states.py.Idle'>), ('NotConnected', <class 'ecs_builtin_states.py.NotConnected'>), ('Run', <class 'ecs_builtin_states.py.Run'>), ('Walk', <class 'ecs_builtin_states.py.Walk'>)]
 
-18:24:05 
+03:28:23 
 line 13 in, ecs_state_component 
 function: <module>() 
 message: Located StateMachine sub-class 
 name:Ascend 
 cls:<class 'ecs_builtin_states.py.Ascend'>
 
-18:24:05 
+03:28:23 
 line 13 in, ecs_state_component 
 function: <module>() 
 message: Located StateMachine sub-class 
 name:Idle 
 cls:<class 'ecs_builtin_states.py.Idle'>
 
-18:24:05 
+03:28:23 
 line 13 in, ecs_state_component 
 function: <module>() 
 message: Located StateMachine sub-class 
 name:NotConnected 
 cls:<class 'ecs_builtin_states.py.NotConnected'>
 
-18:24:05 
+03:28:23 
 line 13 in, ecs_state_component 
 function: <module>() 
 message: Located StateMachine sub-class 
 name:Run 
 cls:<class 'ecs_builtin_states.py.Run'>
 
-18:24:05 
+03:28:23 
 line 13 in, ecs_state_component 
 function: <module>() 
 message: Located StateMachine sub-class 

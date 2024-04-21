@@ -1,6 +1,13 @@
 """Muriel."""
 
+import os
 from logging import handlers, basicConfig, DEBUG
+
+# Maximum distance by which the intersection point can deviate (can be tweaked)
+os.environ["PLANE_THICKNESS_EPSILON"] = "0.01"
+# Blend factor for optimizing for balance or splits (should be tweaked)
+os.environ["BLEND_FACTOR"] = "0.8"
+
 from muriel.ecs_component import Buffer
 from muriel.ecs_events import Observable
 from muriel.ecs_events import Observer
