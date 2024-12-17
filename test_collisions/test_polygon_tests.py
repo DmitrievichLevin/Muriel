@@ -61,19 +61,20 @@ def test_intersecting_segment():
 def testing_vectors():
     """Testing Vectors"""
     A, B, C, D, E, F, G, H, I, J, K, L = (
-        collisions.Vector3d([2, 0, -1]),
-        collisions.Vector3d([5, 0, -1]),
-        collisions.Vector3d([0, 5, -3]),
-        collisions.Vector3d([5, 5, -4]),
-        collisions.Vector3d([10, 5, 4]),
-        collisions.Vector3d([-5, 0, -2]),
-        collisions.Vector3d([0, -5, 2]),
-        collisions.Vector3d([-2, 8, 3]),
-        collisions.Vector3d([2, 2, -9 / 5]),
-        collisions.Vector3d([12, -8, 1]),
-        collisions.Vector3d([12, -8, 5]),
-        collisions.Vector3d([12.0, -8.0, 2.2]),
+        [2, 0, -1],
+        [5, 0, -1],
+        [0, 5, -3],
+        [5, 5, -4],
+        [10, 5, 4],
+        [-5, 0, -2],
+        [0, -5, 2],
+        [-2, 8, 3],
+        [2, 2, -9 / 5],
+        [12, -8, 1],
+        [12, -8, 5],
+        [12.0, -8.0, 2.2],
     )
+
     return [A, B, C, D, E, F, G, H, I, J, K, L]
 
 
@@ -117,6 +118,7 @@ def test_quad():
 @pytest.fixture
 def bsp_tree_tri(testing_triangles):
     """BSP of Triangles"""
+
     return collisions.BSPNode(testing_triangles)
 
 
@@ -170,10 +172,14 @@ def test_picking_split_plane(testing_triangles):
     ABC, CBD, BED, FAC, GBA, FCH, _IJK, *_rest = testing_triangles
 
     # Split Plane: BED Score == 5.2
-    split, _selected_polygon, _rest = collisions.split_plane(
-        [ABC, CBD, BED, FAC, GBA, FCH]
+    split = collisions.split_plane([ABC, CBD, BED, FAC, GBA, FCH])
+
+    assert all(
+        [
+            BED[idx] == auto_partitioned_point
+            for idx, auto_partitioned_point in enumerate(split)
+        ]
     )
-    assert BED == split
 
 
 def test_polygon_split(

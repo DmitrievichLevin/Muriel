@@ -2,170 +2,266 @@
 
 # pylint: disable=line-too-long
 from __future__ import annotations
+from collections.abc import Iterator
+from math import floor
 import os
-from types import NoneType
-from typing import Any
+import types
+from typing import Any, TypeVar
 from functools import reduce
 import numpy as np
-from numpy.typing import NDArray
 from .ecs_constants import Shape, Orientation
 
 
-class NDarray(np.ndarray):
-    """ndArray Base Class"""
+def sqrt(obj):
+    return obj.__sqrt__()
 
-    # def __init__(self, *_args, capacity=0) -> None:
-    #     super().__init__()  # pylint: disable=no-value-for-parameter
 
-    def __new__(cls, input_array: Any):
-        """Construct NDarray Instance
+# TODO - move to top level
+float_formatter = "{:.5f}".format
+np.set_printoptions(formatter={"float_kind": float_formatter})
+
+
+def dot_product(x, y, z, i, j, k):
+    return (i * x) + (j * y) + (k * z)
+
+
+_S = TypeVar("_S", float, int)
+
+
+class Point(list[float | int]):
+    """3-Dimensional Coordinate
+
+    Attributes:
+        is_float(bool): Whether vector includes floats
+    Args:
+         values (tuple[int | float] * 3): list of int(s) and/or float(s).
+    """
+
+    is_float: bool
+    empty: bool
+
+    def __init__(self, *values, **_kwargs):
+
+        self.__type_check(values)
+        super().__init__(values)
+
+    def __type_check(self, values):
+
+        length = (
+            0
+            if not isinstance(values, (list, tuple))
+            else len(values)
+        )
+
+        match length:
+            case 3:
+                self.is_float = False
+                for v in values:
+                    if not isinstance(v, (float, int)):
+                        raise TypeError(
+                            "Expected elements of type float | int."
+                        )
+                    elif v - int(v) != 0:
+                        self.is_float = True
+
+                    else:
+                        v = int(v)
+                self.empty = False
+            case 0:
+                self.empty = True
+            case _:
+                raise TypeError(
+                    "Expected three elements of type float | int."
+                )
+
+    def __add__(self, vector: list[Any], /) -> Point:  # type: ignore[override]
+        _addition = [self[idx] + v for idx, v in enumerate(vector)]
+        return Point(*_addition)
+
+    def __sub__(self, vector: list[_S], /) -> Point:
+
+        _subtraction = [self[idx] - v for idx, v in enumerate(vector)]
+        return Point(*_subtraction)
+
+    def __mul__(self, value) -> Point:
+        if isinstance(value, (float, int)):
+            _scalar = [v * value for v in self]
+            return Point(*_scalar)
+
+        return self.cross(self, value)
+
+    def __rmul__(self, value) -> Point:
+
+        if isinstance(value, (float, int)):
+            _scalar = [v * value for v in self]
+            return Point(*_scalar)
+
+        return self.cross(value, self)
+
+    def __imul__(self, value) -> Point:
+
+        if isinstance(value, (float, int)):
+            _scalar = [v * value for v in self]
+            return Point(*_scalar)
+
+        return self.cross(self, value)
+
+    def __pow__(self, value: int) -> Point:
+        power = [v**value for v in self]
+        return Point(*power)
+
+    def __floor__(self):
+        """Reduce Vector by GCD
+
+        Returns:
+            point(Point): Vector reduced by GCD.
+        """
+
+        # includes: Float = No reduction
+        if self.is_float:
+            return self
+
+        gcd = 1
+
+        gcd = lambda a, b: (  # pylint: disable=unnecessary-lambda-assignment
+            int(a)
+            if b == 0
+            else gcd(  # pylint: disable=not-callable
+                # type: ignore[reportCallIssue]
+                abs(b),
+                abs(a) % abs(b),
+            )
+        )
+
+        gcd = reduce(gcd, self)
+
+        return Point(*[0 if v == 0 else int(v / gcd) for v in self])
+
+    @classmethod
+    def cross(cls, right, left) -> Point:
+        """Matrix Multiplication
+
+        - Scalar: if left is scalar
+        - Matrix: if left is matrix
 
         Args:
-            input_array(Any): input
+            right (Point): 3D Vector
+            left (Point | int | float): 3D Vector or Scalar
 
-        Raises:
-            ValueError: if size or not float or int
+        Returns:
+            result(Point | int | float): result of matrix/scalar multiplication
         """
-        _capacity = getattr(cls, "capacity", 0)
+        u1, u2, u3 = right
+        v1, v2, v3 = left
+        t1, t2, t3 = u1 - u2, v2 + v3, u1 * v3
+        t4 = (t1 * t2) - t3
 
-        _vector_like = cls.vectorlike(input_array)
+        cross = Point(
+            (v2 * (t1 - u3)) - t4,
+            (u3 * v1) - t3,
+            t4 - (u2 * (v1 - t2)),
+        )
 
-        # Check capacity
-        if (
-            (
-                _vector_like
-                and _capacity
-                and len(input_array) != _capacity
-            )
-            or not _vector_like
-            and cls.arraylike(input_array)
-        ):
-            raise ValueError(
-                f"{cls} expected list of length {_capacity}, with elements of type int or float but found {cls}."
-            )
-        # Handle encounters of numpy/native primitives
-        if not cls.arraylike(input_array):
-            return cls.tobase(input_array)
-
-        return np.asarray(input_array).view(cls)
+        return cross
 
     @classmethod
-    def vectorlike(cls, obj: Any):
-        """Check if array contains all floats and/or ints"""
-        _flat_list = np.array(obj).tolist()
-        if isinstance(_flat_list, list):
-            return all(
-                [
-                    (
-                        isinstance(elem, (int, float))
-                        if not isinstance(elem, list)
-                        else cls.vectorlike(elem)
-                    )
-                    for elem in _flat_list
-                ]
-            )
-        return False
+    def sqrt(cls, obj: Point):
+        """Square Root Point Function"""
+        return obj.__sqrt__()
 
-    @classmethod
-    def arraylike(cls, obj: Any):
-        """Check if object is array like"""
-        return cls.isinstance(obj) or isinstance(obj, (list, tuple))
+    def __sqrt__(self) -> Point:
+        res = []
+        for v in self:
 
-    @classmethod
-    def isinstance(cls, instance: Any) -> bool:
-        """Check instance is list, tuple, or numpy array"""
-        parents = type(instance).__mro__
+            res.append(v**0.5)
 
-        is_numpy = any([np.ndarray == parent for parent in parents])
+        return Point(*res)
 
-        return is_numpy
+    def __abs__(self) -> Point:
+        """Absolute Value of Point
 
-    def __array_finalize__(self, obj) -> None:
+        - Point as a unit
 
-        if obj is None:
-            return
-        # This attribute should be maintained!
-        # pylint: disable=attribute-defined-outside-init
-        self.__dict__.update(attr=1)  # another way to set attributes
-
-    def tobase(self, _obj=None) -> Any:
-        """Convert Subclass to base(NDArray)
-
-        - converts numpy primitives to native primitives
+        Returns:
+            Point: point as a unit -1,0,1
         """
-        obj = self if _obj is None else self
+        return Point(
+            *[0 if v == 0 else int(v / abs(v)) for v in self]
+        )
 
-        if not NDarray.isinstance(obj):
-            primitive = getattr(obj, "tolist", lambda: obj)()
-            primitive_cls = primitive.__class__
 
-            return (
-                obj
-                if any(
-                    [
-                        primitive_cls == prim
-                        for prim in [int, float, NoneType]
-                    ]
-                )
-                else type(primitive.__class__)(
-                    obj
-                )  # type: ignore[misc]
-            )
+class Matrix(tuple[Point, ...]):
+    """3D Matrix Base Class
 
-        # Recursively convert list/tuple to base
-        elif isinstance(obj, (list, tuple)):
+    Args:
+        tuple (Point): Point args
 
-            return [self.tobase(elem) for elem in obj]
+    Raises:
+        TypeError: Error initializing Matrix
 
-        return np.array(obj)
+    Returns:
+        Matrix: instance of 3D Matrix
+    """
 
-    def __array_prepare__(self, array, context):
-        base_array = np.array(array.tolist())
-        ufunc, *_context = context
-        _context = [self.tobase(con) for con in _context]
+    cols: int
+    rows: int
 
-        return super().__array_prepare__(  # pylint: disable=no-member
-            base_array,
-            (ufunc, *_context),
-        )  # type: ignore[reportArgumentType]
+    def __new__(cls, *points: Point):
+        instance = super(Matrix, cls).__new__(cls, points)
+
+        try:
+            cols = len(instance[0])
+            rows = len(instance)
+            instance.cols = cols
+            instance.rows = rows
+            return instance
+        except Exception as e:
+            raise TypeError("Error initializing matrix.") from e
 
     def __eq__(self, other: Any) -> Any:
         """Comparison Override"""
-        _other = (
-            other if not hasattr(other, "tolist") else other.tolist()
-        )
 
-        _self = self.tolist()
-
-        if not self.arraylike(other):
+        if not isinstance(other, Matrix) and not issubclass(
+            other.__class__, Matrix
+        ):
             return False
 
-        if len(_other) != len(_self):
+        if self.rows != other.rows or self.cols != other.cols:
             return False
 
-        return np.all(
-            np.isclose(
-                _self,
-                _other,
-                atol=getattr(self, "__thickness", 1e-08),
-            )
-        )
+        close = []
+
+        for i in range(self.rows):
+            for j in range(self.cols):
+                close.append(
+                    abs(self[i][j] - other[i][j])
+                    < getattr(self, "__thickness", 1e-08)
+                )
+
+        return all(close)
 
 
-class Vector3d(NDarray):
-    """3-Dimensional Vector
+class MatrixIterator(Iterator):
+    """Matrix Iterator
 
-    Args:
-         input_array (list[int | float]): list of int(s) and/or float(s).
+    - Handles ValueError Exception with length arguement.
     """
 
-    capacity = 3
+    def __init__(self, mt, length=None):
+        self.mt = mt
+        self.pos = -1
+        self.length = length or mt.rows
 
-    def __new__(cls, input_array: Any):
-        return super().__new__(cls, input_array)
+    def __next__(self):
+        self.pos += 1
+        if self.pos < self.length:
+            if self.pos >= len(self.mt):
+                return Point()
+            return self.mt[self.pos]
+        raise StopIteration
 
 
-class Line(NDarray):
+class Line(Matrix):
     """Two 3D Vectors
     - represents a line segment in 3D space
 
@@ -173,37 +269,18 @@ class Line(NDarray):
          input_array (list[int | float]): list of int(s) and/or float(s) of length 2.
     """
 
-    _a: Vector3d | list[int | float] | tuple[int | float]
-    _b: Vector3d | list[int | float] | tuple[int | float]
-    cross_product: Vector3d
-    difference: Vector3d
-    capacity = 2
+    _a: Point
+    _b: Point
+    cross_product: Point
+    difference: Point
 
-    def __new__(
-        cls,
-        input_array: list[
-            Vector3d | list[int | float] | tuple[int | float]
-        ],
-    ):
-        return super().__new__(cls, input_array)
+    def __new__(cls, *points: Point):
+        instance = super().__new__(cls, *points)
+        a, b = instance
+        instance.cross_product = a * b
+        instance.difference = b - a
 
-    def __array_finalize__(self, obj) -> None:
-        super().__array_finalize__(obj)
-
-        obj_list = obj.tolist()
-        a = np.array(obj_list[0])
-        b = np.array(obj_list[1])
-
-        computed_attrs = {
-            "_a": a,
-            "_b": b,
-            "cross_product": Vector3d(a * b),
-            "difference": Vector3d(b - a),
-        }
-
-        self.__dict__.update(
-            computed_attrs
-        )  # another way to set attributes
+        return instance
 
 
 class Normal(object):
@@ -221,75 +298,38 @@ class Normal(object):
 
     def __init__(
         self,
-        v1: Vector3d | NDArray,
-        v2: Vector3d | NDArray,
-        v3: Vector3d | NDArray,
-        *_rest: Vector3d | NDArray,
+        v1: Point,
+        v2: Point,
+        v3: Point,
+        *_rest: Point,
     ):
-
-        normal = self.get_normal(v1, v2, v3)
-
-        normal_gcd = self.gcd(normal)
-
-        # Simplify normal (greatest common denominator)
-        simplified_normal = np.divide(
-            normal,
-            normal_gcd,
-            out=np.zeros_like(normal, dtype=float),
-            where=normal_gcd != 0.0,
-        )
-
-        # Noraml as a unit
-        unit_denom = np.sqrt([np.square(p) for p in normal])
-
-        # Handles Division by zero
-        orientation = np.divide(
-            normal,
-            unit_denom,
-            out=np.zeros_like(normal, dtype=int),
-            where=unit_denom != 0.0,
-            casting="unsafe",
-        ).tolist()
-
-        self.raw_normal = Vector3d(normal)
-        self.normal = Vector3d(simplified_normal)
-        self.orientation = Orientation(str(orientation))
-        self.unit = orientation
-
-    @classmethod
-    def get_normal(
-        cls,
-        v1: Vector3d | NDArray,
-        v2: Vector3d | NDArray,
-        v3: Vector3d | NDArray,
-    ):
-        """Calculate normal + Convert whole numbers to ints"""
-
-        return np.vectorize(
-            lambda x: int(x) if x - int(x) == 0 else round(x, 4)
-        )(np.cross(v2 - v1, v3 - v1))
-
-    @classmethod
-    def gcd(cls, vector: Vector3d | NDArray) -> int:
-        """GCD of Vector
+        """Calculate normals
+        - Normal of v1-3
+        - Normal as a unit
+        - Simplified Normal (gcd)
 
         Args:
-            vector (Vector3d | NDArray): vector 3
+            v1(Point): point v1
+            v2(Point): point v2
+            v3(Point): point v3
 
         Returns:
-            int: 1 if vector contains non-whole number, else gcd
+            Normal(list[float | int]): Normal of three points
+            Unit normal(list[int]): Normal as a unit
+            Simplified Normal(list[float | int]): Normal simplified by GCD
         """
-        g = lambda a, b: (  # pylint: disable=unnecessary-lambda-assignment
-            1
-            if not float(a).is_integer()
-            else int(a) if b == 0 else g(abs(b), abs(a) % abs(b))  # type: ignore[has-type]
-        )
+        normal: Point = (v2 - v1) * (v3 - v1)
 
-        # pylint: disable=unnecessary-lambda
-        return reduce(lambda x, y: g(x, y), vector)
+        simplified_normal = floor(normal)
+        unit_normal = abs(normal)
+
+        self.raw_normal = normal
+        self.normal = simplified_normal
+        self.orientation = Orientation(str(unit_normal))
+        self.unit = unit_normal
 
 
-class Plane(NDarray):
+class Plane(Matrix):
     """Plane
 
     Attributes:
@@ -305,64 +345,49 @@ class Plane(NDarray):
     """
 
     dot_product: float
-    normal: Vector3d
-    unit_normal: Vector3d
-    raw_normal: Vector3d
-    ab: Vector3d
-    bc: Vector3d
-    ca: Vector3d
+    normal: Point
+    unit_normal: Point
+    raw_normal: Point
+    ab: Point
+    bc: Point
+    ca: Point
     vertices: int
     name: str
     orientation: Orientation
+    capacity: int = 3
 
-    def __new__(
-        cls,
-        input_array: list[Vector3d] | Plane | tuple[Vector3d, ...],
-        **_kwargs,
-    ):
-        _input_vectors = [Vector3d(arr) for arr in input_array]
-        return super().__new__(cls, _input_vectors)
+    def __new__(cls, *points: Point, name="Unknown:Plane"):
+        instance = super().__new__(cls, *points)
 
-    def __init__(  # pylint: disable=super-init-not-called
-        self,
-        _input_array: list[Vector3d] | Plane | tuple[Vector3d, ...],
-        name: str | None = None,
-    ):
-        self.name = name or f"Unknown:{self.__class__.__name__}"
+        instance.name = name
 
-    def __array_finalize__(self, obj) -> None:
+        if instance.rows < cls.capacity:
+            raise TypeError(
+                f"Expected {cls.capacity} vertices, but found {instance.rows}."
+            )
 
-        super().__array_finalize__(obj)
-        rows, *__cols = self.shape
-        cols = 0 if len(__cols) == 0 else __cols[0]
+        a, b, c, *_rest = instance
 
-        # On Mutations return to base if not 3x3
-        if rows < 3 or cols != 3:
-            self.tobase()
-        else:
-            a, b, c, *_rest = np.reshape(obj.tolist(), [-1, 3])
+        _normal = Normal(a, b, c)
 
-            _normal = Normal(a, b, c)
-
-            # Plane is infinite
-            vertices = 0 if self.__class__ == Plane else len(obj)
-
-            # This attribute should be maintained!
-            computed_attributes = {
+        instance.__dict__.update(
+            {
                 "normal": _normal.normal,
                 "unit_normal": _normal.unit,
-                "dot_product": np.dot(_normal.normal, a),
-                "vertices": vertices,
+                "dot_product": dot_product(*_normal.normal, *a),
+                "vertices": instance.rows,
                 "raw_normal": _normal.raw_normal,
                 "orientation": _normal.orientation,
                 "__thickness": float(
                     os.environ["PLANE_THICKNESS_EPSILON"]
                 ),
+                "ab": b - a,
+                "bc": c - b,
+                "ca": a - c,
             }
+        )
 
-            self.__dict__.update(
-                computed_attributes, ab=b - a, bc=c - b, ca=a - c
-            )  # another way to set attributes
+        return instance
 
 
 class Polygon(Plane):
@@ -378,6 +403,7 @@ class Polygon(Plane):
         vertices (int): Number of enclosing points.
         convex(bool): convex-polygon or concave-polygon.
         solid(bool): Polygon is solid.
+        supporting(bool): Flag to prevent reselection in auto-partitioning bsp.
 
     Args:
         input_array(list[Vector3d]): list of 3d vectors 2>vector_list>infinity.
@@ -386,40 +412,23 @@ class Polygon(Plane):
 
     convex: bool
     solid: bool = True
+    supporting: bool = False
 
-    def __new__(
-        cls,
-        input_array: list[Vector3d] | Plane | tuple[Vector3d, ...],
-        **_kwargs,
-    ):
-        length = len(input_array)
-        if length < 3:
-            raise TypeError(
-                f"Expected vertices>3, but found {length}."
-            )
-        return super().__new__(cls, input_array)
-
-    def __array_finalize__(self, obj) -> None:
-        """Update dict with convex(bool) attribute"""
-
-        super().__array_finalize__(obj)
-
-        convex = is_convex(obj.tolist())
-
-        self.__dict__.update(convex=convex)
+    def __new__(cls, *points: Point, name="Unknown:Polygon"):
+        instance = super().__new__(cls, *points, name=name)
+        instance.convex = is_convex(instance)
+        return instance
 
     def __str__(self):
-        rows, *__cols = self.shape
-        cols = 0 if len(__cols) == 0 else __cols[0]
 
-        match rows * 2 - cols:
+        match self.rows * 2 - self.cols:
             case Shape.QUADRILATERAL:
                 _type = "Quadrilateral"
 
             case Shape.TRIANGLE:
                 _type = "Triangle"
             case _:
-                return np.ndarray.__str__(self)
+                return super().__str__()
         _normal = self.raw_normal
         _dot = self.dot_product
         _convex = self.convex
@@ -439,47 +448,47 @@ class Triangle(Polygon):
 
 
 def is_convex(
-    _matrix: list[Vector3d | list[int | float] | tuple[int | float]],
+    matrix: Polygon,
 ):
     """Matrix concavity."""
-    match (len(_matrix)):
+    match (matrix.rows):
         # Triangles are always convex
         case 3:
             return True
         case 4:
-            _a, _b, _c, _d = _matrix
-            d_b = Line([_d, _b])
-            a_b = Line([_a, _b])
-            c_b = Line([_c, _b])
+            _a, _b, _c, _d = matrix
+            d_b = Line(_d, _b)
+            a_b = Line(_a, _b)
+            c_b = Line(_c, _b)
 
-            bda = np.cross(d_b.difference, a_b.difference)
-            bdc = np.cross(d_b.difference, c_b.difference)
+            bda = d_b.difference * a_b.difference
+            bdc = d_b.difference * c_b.difference
 
             # Non-Convex
-            if np.dot(bda, bdc) >= 0.0:
+            if dot_product(*bda, *bdc) >= 0.0:
                 return False
             # Convex
             else:
-                c_a = Line([_c, _a])
-                d_a = Line([_d, _a])
-                b_a = Line([_b, _a])
+                c_a = Line(_c, _a)
+                d_a = Line(_d, _a)
+                b_a = Line(_b, _a)
 
-                acd = np.cross(c_a.difference, d_a.difference)
-                acb = np.cross(c_a.difference, b_a.difference)
+                acd = c_a.difference * d_a.difference
+                acb = c_a.difference * b_a.difference
 
-                return np.dot(acd, acb) < 0.0
+                return dot_product(*acd, *acb) < 0.0
 
         case _:
             # Polygons with vertices < 3 = convex
             return True
 
 
-def scalar_triple(u, v, w) -> int | float:
+def scalar_triple(*uwv: Point) -> int | float:
     """Scalar Triple Product
 
     - formula: u · (v · w)
     """
-
+    u, w, v = uwv
     idx = [0, 1, 2]
 
     product = 0
@@ -495,96 +504,107 @@ def scalar_triple(u, v, w) -> int | float:
 def test_scalar_triple():
     """Test Scalar Triple Product"""
 
-    u, v, w = [[3, 7, 10], [6, 10, 13], [6, 7, 7]]
+    u, v, w = Point(3, 7, 10), Point(6, 10, 13), Point(6, 7, 7)
 
     assert scalar_triple(u, v, w) == 9
 
 
-class Intersection(NDarray):
+class Intersection(Point):
     """Intersecting Vector of Plane & Segment
 
     Args:
-        input_array(Polygon | Plane): Polygon/Plane to test segment against.
+        matrix(Polygon | Plane): Polygon/Plane to test segment against.
         line(Line): Edge to be tested.
     """
 
-    def __new__(
-        cls,
-        input_array: Polygon | Plane,
+    def __init__(
+        self,
+        matrix: Polygon | Plane,
         line: Line,
     ):
-        # Number of vertices
-        num_vertices = input_array.vertices
 
-        p, q = line.tobase()
+        p, q = line
 
         pq = q - p
 
-        # Revert child of ndarray to base
         # TODO - Sort Maybe?
         # Vertices
-        a, b, c, *rest = input_array.tobase()
-        d = len(rest) and rest[0]
+        a, b, c, d = MatrixIterator(matrix, length=4)
 
         # pa, pb, pc, pd | None
-        pa: NDarray = a - p
-        pb: NDarray = b - p
-        pc: NDarray = c - p
-        pd: NDarray = None if not NDarray.arraylike(d) else d - p  # type: ignore[assignment]
+        pa = a - p
+        pb = b - p
+        pc = c - p
+        pd = Point() if d.empty else d - p  # type: ignore[assignment]
 
-        m = np.cross(pc, pq)
+        m = pc * pq
 
         # Mutable
-        uvw = [-np.dot(pb, m), np.dot(pa, m), None]
+        uvw = [-dot_product(*pb, *m), dot_product(*pa, *m), None]
 
         # Immutable
         u, v, w = uvw
 
-        match num_vertices:
-            case Shape.PLANE:
-                intersect = cls.__plane(p, pq, input_array)
+        # Match condition
+        matrix_type = type(matrix)
 
-                return super().__new__(cls, intersect)
-            case Shape.TRIANGLE:
+        # Match options
+        options = types.SimpleNamespace()
+        options.Plane = Plane
+        options.Triangle = Triangle
+        options.Quadrilateral = Quadrilateral
+
+        match matrix_type:
+            case options.Plane:
+                intersect = self.__plane(p, pq, matrix)
+
+                super().__init__(*intersect)
+            case options.Triangle:
 
                 uvw[1] *= -1
 
-            case Shape.QUADRILATERAL:
+            case options.Triangle:
 
                 if v < 0:
 
-                    u = np.dot(pd, m)
+                    u = dot_product(*pd, *m)
                     uvw[0] = u
 
                     v = -v
                     uvw[1] = v
 
-                    intersecting = cls.__dac(
-                        uvw, *[pq, *[pa, pb, pc, pd]]
+                    intersecting = self.__dac(
+                        uvw, *[pq, pa, pb, pc, pd]
                     )
                     u, v, w = uvw
 
                     intersect = (
-                        np.array((u * a) + (v * d) + (w * c))
+                        (u * a) + (v * d) + (w * c)
                         if intersecting
-                        else None
+                        else Point()
                     )
 
-                    return super().__new__(cls, intersect)
+                    super().__init__(*intersect)
                 else:
-                    u = -np.dot(pb, m)
+                    u = -dot_product(*pb, *m)
                     uvw[0] = u
 
-        intersecting = cls.__abc(uvw, *[pq, *[pa, pb, pc, pd]])
+        # ABC if Triangle or Quad(edge case)
+        if (
+            matrix_type == options.Triangle or (v >= 0)
+        ) and not matrix_type == options.Plane:
 
-        u, v, w = uvw
+            intersecting = self.__abc(uvw, *[pq, pa, pb, pc, pd])
 
-        intersect = (
-            np.array((u * a) + (v * b) + (w * c))
-            if intersecting
-            else None
-        )
-        return super().__new__(cls, intersect)
+            u, v, w = uvw
+
+            if intersecting:
+                intersect = (u * a) + (v * b) + (w * c)
+
+            else:
+                intersect = Point()
+
+            super().__init__(*intersect)
 
     @classmethod
     def __abc(cls, uvw, *_points) -> bool:
@@ -639,27 +659,14 @@ class Intersection(NDarray):
         return True
 
     @classmethod
-    def __plane(cls, p: NDarray, pq: NDarray, plane: Plane):
+    def __plane(cls, p: Point, pq: Point, plane: Plane) -> Point:
 
-        t = (plane.dot_product - np.dot(plane.normal, p)) / np.dot(
-            plane.normal, pq
-        )
+        t = (
+            plane.dot_product - dot_product(*plane.normal, *p)
+        ) / dot_product(*plane.normal, *pq)
 
         if t >= 0 and t <= 1:
 
             return p + t * pq
 
-        return None
-
-    def __array_finalize__(self, obj) -> None:
-        super().__array_finalize__(obj)
-
-        computed_attributes = {
-            "__thickness": float(
-                os.environ["PLANE_THICKNESS_EPSILON"]
-            ),
-        }
-
-        self.__dict__.update(
-            computed_attributes
-        )  # another way to set attributes
+        return Point()

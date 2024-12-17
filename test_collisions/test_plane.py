@@ -5,7 +5,8 @@ import pytest
 import numpy as np
 from muriel.collisions.ecs_plane import (
     Normal,
-    Vector3d,
+    Point,
+    Matrix,
     Plane,
     Polygon,
     Quadrilateral,
@@ -17,10 +18,10 @@ from muriel.collisions.ecs_plane import (
 def test_matrix():
     """Test Plane Matrix"""
     # 𝐴=(3,5,12) 𝐵=(6,5,9) 𝐶=(6,8,15)
-    a = np.array([3, 5, 12])
-    b = np.array([6, 5, 9])
-    c = np.array([6, 8, 15])
-    return [a, b, c]
+    a = Point(3, 5, 12)
+    b = Point(6, 5, 9)
+    c = Point(6, 8, 15)
+    return Matrix(a, b, c)
 
 
 def test_vector_class():
@@ -28,11 +29,11 @@ def test_vector_class():
     # Vector3d has length of 3
 
     with pytest.raises(ValueError):
-        Vector3d([0, 1])
+        Point(0, 1)
 
     # Vector3d elements must be of type float | int
     with pytest.raises(ValueError):
-        Vector3d([0, 1, "hello world"])  # type: ignore[reportArgumentType]
+        Point(0, 1, "hello world")  # type: ignore[reportArgumentType]
 
 
 def test_normal_obj(test_matrix):
@@ -58,7 +59,7 @@ def test_normal_obj(test_matrix):
 def test_plane(test_matrix):
     """Test Dot Product Accuracy"""
     v1, v2, v3 = test_matrix
-    plane = Plane([v1, v2, v3])
+    plane = Plane(v1, v2, v3)
 
     # Constant Normal Form: ax + by + cz - d = 0
     # Where n = (a,b,c) and d = n * Any_point_on_the_plane
@@ -69,9 +70,9 @@ def test_polygon(test_matrix):
     """Test Polygon concavity."""
     a, b, d = test_matrix
 
-    c = Vector3d([10, 9, 15])
+    c = Point(10, 9, 15)
 
-    _poly = Polygon([a, b, c, d])
+    _poly = Polygon(a, b, c, d)
 
     assert _poly.convex
 
@@ -80,7 +81,7 @@ def test_polygon_subclass_capacity(test_matrix):
     """Test Quadrilateral Object"""
     a, *_rest = test_matrix
     with pytest.raises(TypeError):
-        _bad_quad = Quadrilateral([a])
+        _bad_quad = Quadrilateral(a)
 
     with pytest.raises(TypeError):
-        _bad_tri = Triangle([a])
+        _bad_tri = Triangle(a)

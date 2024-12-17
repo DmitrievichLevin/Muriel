@@ -6,7 +6,8 @@ from .ecs_constants import Orientation, PolygonClassification, Shape
 from .ecs_plane import (
     Normal,
     Plane,
-    Vector3d,
+    Point,
+    Matrix,
     Line,
     Polygon,
     Quadrilateral,
@@ -20,6 +21,10 @@ from .ecs_bsp_utils import (
     classify_vector_to_plane,
     point_bounded_by_polygon,
     normalize_vector,
+    point_plane_dist,
+    manual_perpendicular_split_plane,
 )
 
 from .ecs_bsp import BSPNode
+
+from .ecs_boundingbox import AABB

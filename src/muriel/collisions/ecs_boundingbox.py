@@ -1,18 +1,18 @@
 from __future__ import annotations
-from .ecs_plane import Vector3d, Triangle
+from .ecs_plane import Point, Triangle
 from .ecs_constants import Orientation
 
 
 class BoundingBox:
 
-    center: Vector3d
-    half_widths: Vector3d
+    center: Point
+    half_widths: Point
     orientation: Orientation
 
     def __init__(
         self,
-        center: Vector3d,
-        half_widths: Vector3d,
+        center: Point,
+        half_widths: Point,
         orientation: Orientation = Orientation.UP,
     ):
         self.center = center
@@ -52,12 +52,6 @@ class AABB(BoundingBox):
             return False
         return True
 
-
-def aabb_collision_test():
-    box1 = AABB(Vector3d([2, 2, 1]), Vector3d([1, 1, 1]))
-    box2 = AABB(Vector3d([2, 4, 1]), Vector3d([1, 1, 1]))
-
-    print(box1.colliding(box2))
-
-
-aabb_collision_test()
+    @property
+    def on_floor(self):
+        pass

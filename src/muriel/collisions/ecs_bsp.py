@@ -7,7 +7,7 @@ from .ecs_plane import (
     Polygon,
     Quadrilateral,
     Triangle,
-    Vector3d,
+    Point,
     Plane,
 )
 from .ecs_bsp_utils import (
@@ -54,24 +54,27 @@ class BSPNode:
             self.polygon = polygons[0]
 
         else:
+            _split = split_plane(polygons)
+            print(
+                "one should be splitting",
+                [v.supporting for v in polygons],
+            )
             front_list = []
             back_list = []
-            _split, selected_polygon, remainingpolygons = split_plane(
-                polygons
-            )
-
+            # TODO - EDGE two polygons left perpendicular to eachother w/ same classification need to separate the two(front,back) and be able to query against the parent
             # Set Node Plane + Polygon
             self.plane = _split
-            self.polygon = selected_polygon
+            # self.polygon = selected_polygon
+
             looping = 0
-            for poly in remainingpolygons:
+            for poly in polygons:
                 looping += 1
                 cond = classify_polygon_to_plane(poly, _split)
 
                 match (cond):
                     case PolygonClassification.COPLANAR:
 
-                        pass
+                        front_list.append(poly)
                     case PolygonClassification.INFRONT:
 
                         front_list.append(poly)
@@ -92,6 +95,29 @@ class BSPNode:
                         )
             next_depth = depth + 1
 
+            # Edge Case: Split Plane did not partition polygons of length: 2
+            # Manually separate on front & back
+            # Set plane to None
+            no_partition = (
+                front_list
+                if (len(front_list) == 2 and len(back_list) == 0)
+                else (
+                    back_list
+                    if (len(back_list) == 2 and len(front_list) == 0)
+                    else None
+                )
+            )
+            if no_partition is not None:
+                self.plane = None  # type: ignore[reportAttributeAccessIssue]
+
+                (  # pylint: disable=unbalanced-tuple-unpacking
+                    _one_of_two,
+                    _two_of_two,
+                ) = no_partition
+
+                front_list = [_one_of_two]
+                back_list = [_two_of_two]
+
             if front_list:
                 self._front = BSPNode(
                     front_list,
@@ -107,7 +133,25 @@ class BSPNode:
                 )
 
         # Visual Tracking
-        self.key = self.polygon.name
+        self.__set_key(
+            getattr(self, "plane", None),
+            getattr(self, "polygon", None),
+        )
+
+    def __set_key(self, plane: Plane | None, polygon: Polygon | None):
+        """Set Node Key(for Debugging)
+
+        Args:
+            plane (Plane | None): if not leaf key == plane.name or if no plane default: 'No_Plane'.
+            polygon (Polygon | None): if leaf ket == polygon.name.
+        """
+        if polygon is not None:
+            self.key = self.polygon.name
+
+        elif plane is not None:
+            self.key = self.plane.name
+        else:
+            self.key = "No_P"
 
     def display(self) -> None:
         """Display BSP Tree in Terminal"""
@@ -195,24 +239,24 @@ class BSPNode:
         ]
         return lines, n + m + u, max(p, q) + 2, n + u // 2
 
+    @property
+    def info(self):
+        return f"key: {self.key} \nleaf:{self.leaf}"
+
     @classmethod
-    def point_collision(cls, node: BSPNode | None, point: Vector3d):
+    def point_collision(cls, node: BSPNode, point: Point):
         """Determine Whether A Given Point Collides With a Node
 
         Args:
             node(BSPNode): Node of BSPTree containing plane/polygon to test point against.
-            point(Vector3d): Point to test against tree.
+            point(Point): Point to test against tree.
 
         Returns:
             (PolygonClassification[Collision | Not_Colliding]): result of test.
         """
 
-        while node:
-            if not node.leaf:
-                plane = node.plane
-            else:
-                # Leaf Node = check against polygon
-                plane = node.polygon
+        while not node.leaf:
+            plane = node.plane
 
             point_class = classify_vector_to_plane(point, plane)
             match point_class:
@@ -226,52 +270,181 @@ class BSPNode:
                     node = node._behind
                 case PolygonClassification.ON_PLANE:
 
-                    bounded = point_bounded_by_polygon(
-                        point, node.polygon
+                    front_check, behind_check = None, None
+
+                    if node._front:
+                        front_check = cls.point_collision(
+                            node._front, point
+                        )
+                    if node._behind:
+                        behind_check = cls.point_collision(
+                            node._behind, point
+                        )
+                    return (
+                        PolygonClassification.COLLISION
+                        if any(
+                            [
+                                PolygonClassification.COLLISION
+                                == check
+                                for check in [
+                                    front_check,
+                                    behind_check,
+                                ]
+                            ]
+                        )
+                        else PolygonClassification.NOT_COLLIDING
                     )
 
-                    if bounded and node.polygon.solid:
-                        return PolygonClassification.COLLISION
+                case PolygonClassification.NO_PLANE:
+                    # pylint: disable=pointless-string-statement
+                    """Edge Case:
+                    - Two Polygons
+                    - Unable to auto/manual partition
+                    - Split between front & back w/ no plane
+                    - Note: No Plane Nodes Should Always have front/back nodes
+                    """
+                    front = cls.point_collision(node._front, point)  # type: ignore[reportArgumentType]
+                    behind = cls.point_collision(node._behind, point)  # type: ignore[reportArgumentType]
 
-                    front = cls.point_collision(node._front, point)
-                    behind = cls.point_collision(node._behind, point)
                     return (
                         front
-                        if front == behind
-                        else PolygonClassification.COLLISION
+                        if behind
+                        == PolygonClassification.NOT_COLLIDING
+                        else behind
+                    )
+        if not node.leaf:
+            return PolygonClassification.NOT_COLLIDING
+        else:
+            bounded = point_bounded_by_polygon(point, node.polygon)
+
+            if bounded and node.polygon.solid:
+                return PolygonClassification.COLLISION
+
+    @classmethod
+    def polygon_collision(
+        cls,
+        node: BSPNode,
+        polygon: Polygon | Quadrilateral | Triangle,
+    ) -> Polygon | Quadrilateral | Triangle | None:
+        """Determine Whether A Polygon Collides With a Node
+
+        Args:
+            node(BSPNode): Node of BSPTree containing plane/polygon to test point against.
+            polygon(Polygon | Quadrilateral | Triangle): Polygon to test against tree.
+
+        Returns:
+            (Polygon | Quadrilateral | Triangle | None): None or colliding polygon.
+        """
+
+        while not node.leaf:
+
+            plane = node.plane
+
+            poly_class = classify_polygon_to_plane(polygon, plane)
+            print(
+                "polygon collision class",
+                poly_class,
+                node.leaf,
+                node.key,
+            )
+            match poly_class:
+                case PolygonClassification.INFRONT:
+                    if not node._front:
+                        break
+                    node = node._front
+                    continue
+                case PolygonClassification.BEHIND:
+                    if not node._behind:
+                        break
+                    node = node._behind
+                    continue
+                case PolygonClassification.STRADDLING:
+                    # Split + Chack Front & Back
+                    front_check, behind_check = None, None
+                    _front, _back = split_polygon(polygon, plane)
+
+                    if node._front:
+                        front_check = cls.polygon_collision(
+                            node._front, _front
+                        )
+                    if node._behind:
+                        behind_check = cls.polygon_collision(
+                            node._behind, _back
+                        )
+
+                    # Return Collision Result from split check
+                    if any(
+                        check is not None
+                        for check in [front_check, behind_check]
+                    ):
+                        return (
+                            front_check
+                            if front_check is not None
+                            else behind_check
+                        )
+                case PolygonClassification.NO_PLANE:
+                    # No plane = Check front & back
+                    # Note: Should always have front & back node if no plane
+
+                    front_check = cls.polygon_collision(
+                        node._front, polygon  # type: ignore[arguementType]
                     )
 
-        return PolygonClassification.NOT_COLLIDING
+                    behind_check = cls.polygon_collision(
+                        node._behind, polygon  # type: ignore[arguementType]
+                    )
+
+                    # Return Collision Result from split check
+                    if any(
+                        check is not None
+                        for check in [front_check, behind_check]
+                    ):
+                        return (
+                            front_check
+                            if front_check is not None
+                            else behind_check
+                        )
+
+        # No Collision Found
+        return None if not node.leaf else node.polygon
 
 
 def correct_orientation():
     A, B, C, D, E, F, G, H, I, J, K, L = (
-        Vector3d([2, 0, -1]),
-        Vector3d([5, 0, -1]),
-        Vector3d([0, 5, -3]),
-        Vector3d([5, 5, -4]),
-        Vector3d([10, 5, 4]),
-        Vector3d([-5, 0, -2]),
-        Vector3d([0, -5, 2]),
-        Vector3d([-2, 8, 3]),
-        Vector3d([2, 2, -9 / 5]),
-        Vector3d([12, -8, 1]),
-        Vector3d([12, -8, 5]),
-        Vector3d([12.0, -8.0, 2.2]),
+        Point(2, 0, -1),
+        Point(5, 0, -1),
+        Point(0, 5, -3),
+        Point(5, 5, -4),
+        Point(10, 5, 4),
+        Point(-5, 0, -2),
+        Point(0, -5, 2),
+        Point(-2, 8, 3),
+        Point(2, 2, -9 / 5),
+        Point(12, -8, 1),
+        Point(12, -8, 5),
+        Point(12.0, -8.0, 2.2),
     )
     triangles = [
-        Triangle([A, B, C], name="ABC"),
-        Triangle([C, B, D], name="CBD"),
-        Triangle([B, E, D], name="BED"),
-        Triangle([F, A, C], name="FAC"),
-        Triangle([G, B, A], name="GBA"),
-        Triangle([F, C, H], name="FCH"),
-        Triangle([I, J, K], name="IJK"),
+        Triangle(A, B, C, name="ABC"),
+        Triangle(C, B, D, name="CBD"),
+        Triangle(B, E, D, name="BED"),
+        Triangle(F, A, C, name="FAC"),
+        Triangle(G, B, A, name="GBA"),
+        Triangle(F, C, H, name="FCH"),
+        Triangle(I, J, K, name="IJK"),
     ]
 
     tree = BSPNode(triangles)
+    # print("fisrt node check", tree.polygon)
+    AABB_bottom = Quadrilateral(
+        Point(1, 1, -2),
+        Point(3, 1, -2),
+        Point(3, 3, -2),
+        Point(1, 3, -2),
+    )
 
     tree.display()
+    print("collision", BSPNode.polygon_collision(tree, AABB_bottom))
 
 
-correct_orientation()
+# correct_orientation()
